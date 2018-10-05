@@ -470,11 +470,16 @@ summary(dtree_2)
 #                    wind_speed+distance_from_station, fire_train, trControl = train_control, method = "rpart")
 
 summary(dtree_fit_1)
-fire_validn$predicted_response_time <- predict(lm_1,fire_validn)
+fire_validn$predicted_response_time <- predict(dtree_fit_1,fire_validn)
 #fire_validn$predicted_response_time <- mean(fire_validn$total_response_time)
 rmse <- function(actual, predicted){
   sqrt(mean((actual - predicted)^2))
 }
 fire_validn_err <- rmse(fire_validn$total_response_time, fire_validn$predicted_response_time)
 #RMSE with simple mean prediction is 386.37 - Baseline
-summary(fire_validn$total_response_time)
+#RMSE with dtree_2: 375.85
+#RMSE with dtree_1: 336.47 sec
+summary(fire_dept$total_response_time)
+sd(fire_dept$total_response_time)
+sd(fire_validn$total_response_time)
+#For the response time, mu is 505 and sigma is 383.The fuck 
