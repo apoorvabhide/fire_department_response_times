@@ -259,6 +259,8 @@ response_by_fire_prevention_dist_plot<-ggplot(data=response_dist.m, aes(x=fire_p
   ggtitle("Mean Response time by Fire Prevention District")+xlab("Fire prevention District")+ylab("Mean Response Time (seconds)")
 
 response_by_fire_prevention_dist_plot
+
+
 #write.csv(fire_dept,'/home/ab/Downloads/Datasets for analysis/Fire Department Service Calls/fire_dept_ads.csv')
 
 #Download the weather data
@@ -368,6 +370,19 @@ response_by_weather_plot<-ggplot(data=response_weather.m, aes(x=weather_descript
 
 response_by_weather_plot
 
+#Check out the performance of units
+length(unique(fire_dept$unit_id))
+response_time_by_unit <- aggregate(response_time ~ unit_id, fire_dept, mean)
+on_scene_time_by_unit <- aggregate(on_scene_time ~ unit_id, fire_dept, mean)
+response_time_by_unit <- merge(response_time_by_unit, on_scene_time_by_unit, by = 'unit_id')
+response_by_unit.m <- melt(response_time_by_unit, 'unit_id')
+
+response_by_unit_id_plot<-ggplot(data=response_by_unit.m[response_by_unit.m$value <= 4000,], aes(x=unit_id, y=value, fill = variable)) +
+  geom_bar(stat="identity")+ theme(axis.text.x = element_text(angle = 60, hjust = 1))+
+  scale_fill_manual(values = c('#b5cde1','#90b4d2'),name="Time Interval", labels=c("Response Time","On Scene Time"))+
+  ggtitle("Response time by Unit")+xlab("Unit")+ylab("Mean Response Time (seconds)")
+response_by_unit_id_plot
+
 #Now, get the distance from the fire station
 addresses$lt_10 <- 0
 addresses$lt_10[addresses$Fire.Station < 10] <- 1
@@ -396,6 +411,8 @@ cor(na.omit(fire_dept$distance_from_station), fire_dept$on_scene_time[!is.na(fir
 #Correlation is -0.012 for total response time, -0.005 for on_scene_time. Basically no correlation at all. Interesting.
 cor(na.omit(fire_dept$temperature), fire_dept$total_response_time)
 
+plot(x = fire_dept$number_of_alarms, y = fire_dept$total_response_time)
+
 #Check which columns have NAs, because they will fuck with Caret.
 cols_w_na <- names(which(colSums(is.na(fire_dept))>0))
 #Zipcode has ~ 1800 NAs, replace them with 0 as a different level
@@ -410,12 +427,68 @@ sum(fire_dept$total_response_time > 10000)
 long_time <- fire_dept[fire_dept$total_response_time > 10000,]
 fire_dept <- fire_dept[fire_dept$total_response_time <= 10000,]
 
+fire_dept$fire_response_time <- -as.numeric(difftime(fire_dept$entry_timestamp, fire_dept$on_scene_timestamp, units = "secs"))
+
+#Does response time vary by battalion?
+response_bat.1 <- aggregate(entry_time ~ battalion, fire_dept, mean)
+colnames(response_bat.1) <- c('battalion','entry_time')
+
+response_bat.2 <- aggregate(dispatch_time ~ battalion, fire_dept, mean)
+colnames(response_bat.2) <- c('battalion','dispatch_time')
+
+response_bat.3 <- aggregate(response_time ~ battalion, fire_dept, mean)
+colnames(response_bat.3) <- c('battalion','response_time')
+
+response_bat.4 <- aggregate(on_scene_time ~ battalion, fire_dept, mean)
+colnames(response_bat.4) <- c('battalion','on_scene_time')
+
+response_bat <- merge(response_bat.1, response_bat.2, by = 'battalion')
+response_bat <- merge(response_bat, response_bat.3, by = 'battalion')
+response_bat <- merge(response_bat, response_bat.4, by = 'battalion')
+response_bat.m <- melt(response_bat)
+
+response_by_bat_plot<-ggplot(data=response_bat.m, aes(x=battalion, y=value, fill = variable)) +
+  geom_bar(stat="identity")+ theme(axis.text.x = element_text(angle = 60, hjust = 1))+
+  scale_fill_manual(values = c('#b5cde1','#90b4d2','#6a9bc3','#4682b4'),name="Time Interval", labels=c("Entry Time", "Dispatch Time", "Response Time","On Scene Time"))+
+  ggtitle("Response time by Battalion")+xlab("Battalion")+ylab("Mean Response Time (seconds)")
+
+response_by_bat_plot
+
+#ALS unit - Y/N
+response_als.1 <- aggregate(entry_time ~ als_unit, fire_dept, mean)
+colnames(response_als.1) <- c('als_unit','entry_time')
+
+response_als.2 <- aggregate(dispatch_time ~ als_unit, fire_dept, mean)
+colnames(response_als.2) <- c('als_unit','dispatch_time')
+
+response_als.3 <- aggregate(response_time ~ als_unit, fire_dept, mean)
+colnames(response_als.3) <- c('als_unit','response_time')
+
+response_als.4 <- aggregate(on_scene_time ~ als_unit, fire_dept, mean)
+colnames(response_als.4) <- c('als_unit','on_scene_time')
+
+response_als <- merge(response_als.1, response_als.2, by = 'als_unit')
+response_als <- merge(response_als, response_als.3, by = 'als_unit')
+response_als <- merge(response_als, response_als.4, by = 'als_unit')
+response_als.m <- melt(response_als)
+
+response_by_als_plot<-ggplot(data=response_als.m, aes(x=als_unit, y=value, fill = variable)) +
+  geom_bar(stat="identity")+ theme(axis.text.x = element_text(angle = 60, hjust = 1))+
+  scale_fill_manual(values = c('#b5cde1','#90b4d2','#6a9bc3','#4682b4'),name="Time Interval", labels=c("Entry Time", "Dispatch Time", "Response Time","On Scene Time"))+
+  ggtitle("Response time by als_unit")+xlab("als_unit")+ylab("Mean Response Time (seconds)")
+
+response_by_als_plot
+
 fire_dept$station_area <- as.factor(fire_dept$station_area)
 fire_dept$hour_of_day <- as.factor(fire_dept$hour_of_day)
 fire_dept$call_type <- as.factor(fire_dept$call_type)
 fire_dept$zipcode <- as.factor(fire_dept$zipcode)
 fire_dept$original_priority <- as.factor(fire_dept$original_priority)
 fire_dept$weather_description <- as.factor(fire_dept$weather_description)
+fire_dept$battalion <- as.factor(fire_dept$battalion)
+fire_dept$unit_type <- as.factor(fire_dept$unit_type)
+fire_dept$neighbourhood_dist <- as.factor(fire_dept$neighbourhood_dist)
+fire_dept$als_unit <- as.factor(fire_dept$als_unit)
 
 
 #Divide into train and test
@@ -429,6 +502,35 @@ fire_validn <- remain40[test_valid_index,]
 fire_test <- remain40[-test_valid_index,]
 # fire_test <- fire_dept[-train_index,]
 
+#Look at the distributions of each of the time intervals
+plot(density(fire_dept$entry_time), xlim = c(0,400))
+plot(density(fire_dept$dispatch_time), xlim = c(0,400))
+plot(density(fire_dept$response_time), xlim = c(0,400))
+plot(density(fire_dept$scene_time), xlim = c(0,600))
+
+#Look at the distributions of each of the time intervals
+entry_time_dist <- qplot(entry_time, data=fire_dept, geom="density") + xlim(0,400)+
+                ggtitle("Frequency Distribution of Entry Time")+xlab("Entry Time (secs)")+ylab("Density")
+entry_time_dist
+
+dispatch_time_dist <- qplot(dispatch_time, data=fire_dept, geom="density") + xlim(0,300)+
+                ggtitle("Frequency Distribution of Dispatch Time")+xlab("Dispatch Time (secs)")+ylab("Density")
+dispatch_time_dist
+
+response_time_dist <- qplot(response_time, data=fire_dept, geom="density") + xlim(0,300)+
+  ggtitle("Frequency Distribution of Response Time")+xlab("Response Time (secs)")+ylab("Density")
+response_time_dist
+
+scene_time_dist <- qplot(on_scene_time, data=fire_dept, geom="density") + xlim(0,1000)+
+  ggtitle("Frequency Distribution of Time taken to reach scene")+xlab("On-scene Time (secs)")+ylab("Density")
+scene_time_dist
+
+summary_time <- data.frame(cbind('Entry Time',mean(fire_dept$entry_time), sd(fire_dept$entry_time)))
+summary_time <- rbind(summary_time, data.frame(cbind('Dispatch Time',mean(fire_dept$dispatch_time), sd(fire_dept$dispatch_time))))
+summary_time <- rbind(summary_time, data.frame(cbind('Response Time',mean(fire_dept$response_time), sd(fire_dept$response_time))))
+summary_time <- rbind(summary_time, data.frame(cbind('On Scene Time',mean(fire_dept$on_scene_time), sd(fire_dept$on_scene_time))))
+colnames(summary_time) <- c('Time Interval', 'Mean', 'Standard Dev.')
+
 library(caret)
 # define training control
 train_control<- trainControl(method="cv", number=3, savePred=TRUE)
@@ -441,9 +543,9 @@ response_time_lm <- lm(total_response_time ~ station_area+ hour_of_day+ call_typ
 
 summary(response_time_lm)
 
-# write.csv(fire_train,'/home/ab/Downloads/Datasets for analysis/Fire Department Service Calls/fire_train.csv')
-# write.csv(fire_validn,'/home/ab/Downloads/Datasets for analysis/Fire Department Service Calls/fire_validn.csv')
-# write.csv(fire_test,'/home/ab/Downloads/Datasets for analysis/Fire Department Service Calls/fire_test.csv')
+write.csv(fire_train,'/home/ab/Downloads/Datasets for analysis/Fire Department Service Calls/fire_train.csv')
+write.csv(fire_validn,'/home/ab/Downloads/Datasets for analysis/Fire Department Service Calls/fire_validn.csv')
+write.csv(fire_test,'/home/ab/Downloads/Datasets for analysis/Fire Department Service Calls/fire_test.csv')
 
 # response_time_predict <- train(total_response_time ~ as.factor(station_area)+as.factor(hour_of_day)+
 #                                  as.factor(call_type)+as.factor(zipcode)+as.factor(original_priority)+
@@ -453,9 +555,9 @@ summary(response_time_lm)
 #                                fire_train, method = "lm", na.action = na.omit)
 # summary(response_time_predict)
 
-fire_train <- read.csv('/home/ab/Downloads/Datasets for analysis/Fire Department Service Calls/fire_train.csv')
-fire_validn <- read.csv('/home/ab/Downloads/Datasets for analysis/Fire Department Service Calls/fire_validn.csv')
-fire_test <- read.csv('/home/ab/Downloads/Datasets for analysis/Fire Department Service Calls/fire_test.csv')
+# fire_train <- read.csv('/home/ab/Downloads/Datasets for analysis/Fire Department Service Calls/fire_train.csv')
+# fire_validn <- read.csv('/home/ab/Downloads/Datasets for analysis/Fire Department Service Calls/fire_validn.csv')
+# fire_test <- read.csv('/home/ab/Downloads/Datasets for analysis/Fire Department Service Calls/fire_test.csv')
 
 #Predict using decision tree
 library(rpart)
@@ -481,5 +583,102 @@ fire_validn_err <- rmse(fire_validn$total_response_time, fire_validn$predicted_r
 #RMSE with dtree_1: 336.47 sec
 summary(fire_dept$total_response_time)
 sd(fire_dept$total_response_time)
-sd(fire_validn$total_response_time)
-#For the response time, mu is 505 and sigma is 383.The fuck 
+#For the response time, mu is 505 and sigma is 383.THAT is how much variation there is in the data.
+
+dtree_4 <- rpart(total_response_time ~ station_area+hour_of_day+call_type+battalion+als_unit+
+                   original_priority+weather_description+temperature+final_priority+unit_type+
+                   wind_speed+distance_from_station+number_of_alarms, fire_train)
+
+fire_validn$predicted_response_time <- predict(dtree_4,fire_validn)
+fire_validn_err <- rmse(fire_validn$total_response_time, fire_validn$predicted_response_time)
+library(randomForest)
+set.seed(3)
+dtree_5 <- randomForest(total_response_time ~ hour_of_day+call_type+battalion+als_unit+
+                         weather_description+temperature+final_priority+unit_type+
+                          wind_speed+distance_from_station+number_of_alarms, fire_train,
+                        ntree = 100, importance = TRUE)
+fire_validn$predicted_response_time <- predict(dtree_5,fire_validn)
+fire_validn_err <- rmse(fire_validn$total_response_time, fire_validn$predicted_response_time)
+
+#I'm gonna check out all the rows with response time = 0. Are they fucking up the variance?
+sum(fire_dept$total_response_time == 0) #10393 rows
+mean_wo_zero <- mean(fire_dept$total_response_time[fire_dept$total_response_time != 0])
+sd_wo_zero <- sd(fire_dept$total_response_time[fire_dept$total_response_time != 0])
+fire_dept$zero_time_flag <- 0
+fire_dept$zero_time_flag[fire_dept$total_response_time == 0] <- 1
+fire_dept$zero_time_flag <- as.factor(fire_dept$zero_time_flag)
+
+dtree_6 <- rpart(total_response_time ~ station_area+hour_of_day+call_type+battalion+als_unit+
+                   original_priority+weather_description+temperature+final_priority+unit_type+
+                   wind_speed+distance_from_station+number_of_alarms+zero_time_flag, fire_train)
+
+fire_validn$predicted_response_time <- predict(dtree_6,fire_validn)
+fire_validn_err <- rmse(fire_validn$total_response_time, fire_validn$predicted_response_time)
+
+fire_train$zero_time_flag <- NULL
+fire_validn$zero_time_flag <- NULL
+fire_test$zero_time_flag <- NULL
+#I'm gonna try PCA, maybe that'll help
+#First, convert the categoricals to dummy variables
+library(caret)
+fire_train_dmy <- dummyVars(" ~ station_area+hour_of_day+call_type+battalion+als_unit+
+                   original_priority+weather_description+final_priority+unit_type", data = fire_train_3)
+fire_train_dmy2 <- data.frame(predict(fire_train_dmy, newdata = fire_train))
+
+library(factoextra)
+fire_train_pca <- prcomp(fire_train_dmy2, scale = TRUE)
+fviz_eig(fire_train_pca)
+
+library(mgcv)
+knots <- quantile(fire_train$temperature, p = c(0.25,0.5,0.75))
+spline_model <- gam(total_response_time ~ s(hour_of_day)+s(call_type)+s(battalion)+s(als_unit)+
+                s(original_priority)+s(weather_description)+s(temperature)+s(final_priority)+s(unit_type)+
+                s(wind_speed)+s(distance_from_station)+s(number_of_alarms), data = fire_train)
+
+#write.csv(fire_dept, '~/Downloads/Datasets for analysis/Fire Department Service Calls/fire_dept.csv')
+
+max(fire_dept$call_date)
+min(fire_dept$call_date)
+fire_dept_3 <- fire_dept[fire_dept$call_date <= '2016-05-31',]
+fire_dept_2 <- fire_dept[fire_dept$call_date <= '2015-09-31',]
+
+#write.csv(fire_dept_3, '~/Downloads/Datasets for analysis/Fire Department Service Calls/fire_dept_3.csv')
+sample_size_3 <- floor(0.6 * nrow(fire_dept_2))
+set.seed(2014)
+train_index_3 <- sample(seq_len(nrow(fire_dept_2)), size = sample_size_3)
+fire_train_3 <- fire_dept_2[train_index_3,]
+remain403 <- fire_dept_2[-train_index_3,]
+test_valid_index_3 <- sample(seq_len(nrow(remain403)), 0.5*nrow(remain403))
+fire_validn_3 <- remain403[test_valid_index_3,]
+fire_test_3 <- remain403[-test_valid_index_3,]
+
+sd(fire_validn_3$total_response_time) #399seconds
+
+library(rpart)
+dtree_63 <- rpart(total_response_time ~ station_area+hour_of_day+call_type+battalion+als_unit+
+                   original_priority+weather_description+temperature+final_priority+unit_type+
+                   wind_speed+distance_from_station+number_of_alarms+zero_time_flag, fire_train_3)
+
+fire_validn_3$predicted_response_time <- predict(dtree_63,fire_validn_3)
+fire_validn_err3 <- rmse(fire_validn_3$total_response_time, fire_validn_3$predicted_response_time)
+#RMSE is now 314.56. Cool.
+
+write.csv(fire_dept_2,'~/Downloads/Datasets for analysis/Fire Department Service Calls/fire_dept_2.csv', row.names = F)
+rm(list = ls())
+saveRDS(fire_train_3,'~/Downloads/Datasets for analysis/Fire Department Service Calls/fire_train_3.Rda')
+saveRDS(fire_validn_3,'~/Downloads/Datasets for analysis/Fire Department Service Calls/fire_validn_3.Rda')
+saveRDS(fire_test_3, '~/Downloads/Datasets for analysis/Fire Department Service Calls/fire_test_3.Rda')
+
+fire_train_3 <- readRDS('~/Downloads/Datasets for analysis/Fire Department Service Calls/fire_train_3.Rda')
+fire_validn_3 <- readRDS('~/Downloads/Datasets for analysis/Fire Department Service Calls/fire_validn_3.Rda')
+fire_test_3 <- readRDS('~/Downloads/Datasets for analysis/Fire Department Service Calls/fire_test_3.Rda')
+
+library(randomForest)
+set.seed(3)
+dtree_53 <- randomForest(total_response_time ~ hour_of_day+call_type+battalion+als_unit+
+                          weather_description+temperature+final_priority+unit_type+
+                          wind_speed+distance_from_station+number_of_alarms, fire_train_3,
+                        ntree = 300, na.action = na.omit, importance = TRUE)
+fire_validn_3$predicted_response_time <- predict(dtree_53,fire_validn_3)
+fire_validn_err_3 <- rmse(fire_validn_3$total_response_time, fire_validn_3$predicted_response_time)
+print(fire_validn_err_3)
